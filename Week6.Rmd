@@ -1,0 +1,226 @@
+---
+title: "ANA 515 - Assignment 2 - Storm Event Analysis"
+author: "Shanmugapriya Mohan Kumar"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme:
+      bootswatch: minty
+---
+<style>
+  h1.title {
+    text-align: center;
+  }
+  h4.author {
+    text-align: center;
+  }
+  h4.date {
+    text-align: center;
+  }
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, include = TRUE, message = TRUE, warning = FALSE)
+library(tidyverse)
+library(knitr)
+library(bslib)
+library(readr)
+library(rmarkdown)
+library(dplyr)  # for data manipulation
+library(lubridate)  # for date handling
+library(stringr)
+```
+
+<style>
+  h1.title {
+    text-align: center;
+  }
+  h4.author {
+    text-align: center;
+  }
+  h4.date {
+    text-align: center;
+  }
+</style>
+
+## Objective
+
+The objective of this analysis is to process and visualize storm events data from a provided CSV file. 
+
+1. Filter the storm events data to include only events listed by county FIPS.
+2. Format the state and county FIPS codes and combine them into a single FIPS column.
+3. Standardize all column names to lower case for consistency.
+4. Integrate state-level information, including area and region, from built-in R datasets.
+5. Calculate the number of storm events per state.
+6. Merge the storm events data with state information, ensuring only matching states are included.
+7. Display the merged data in a comprehensive table.
+8. Create a scatter plot to visualize the relationship between land area and the number of storm events, with points color-coded by region.
+
+Through this analysis, we aim to gain insights into the distribution and frequency of storm events across different states and regions, and how these events correlate with the geographic area of the states.
+
+``` {r load-data, echo=FALSE}
+# Dataset URL
+stormevent_data <- "https://raw.githubusercontent.com/ShanmugapriyaMohankumar/Week6-Assignment/main/StormEvents_details.csv"
+
+# Read the dataset from the URL
+storm_data <- read_csv(stormevent_data,show_col_types = FALSE) #read_csv is part of the readr package, which is included in the tidyverse collection of R packages
+
+#number of rows and columns
+storm_data_rows<-nrow(storm_data)
+storm_data_columns<-ncol(storm_data)
+
+```
+### Load and display data 
+    The table contains `r storm_data_rows` rows and `r storm_data_columns` variables.
+
+``` {r display-data, echo=FALSE}
+#display the first few rows of the dataframe
+head(storm_data)
+```
+# Limit the dataframe to the selected columns
+
+``` {r limit-data, echo=FALSE}
+# Select the desired columns
+selected_columns <- c(
+  'BEGIN_YEARMONTH',
+  'EPISODE_ID',
+  'STATE',
+  'STATE_FIPS',
+  'CZ_NAME',   # County name
+  'CZ_TYPE',
+  'CZ_FIPS',
+  'EVENT_TYPE'
+)
+# Limit the dataframe to the selected columns
+limited_stormdata <- storm_data %>% select(all_of(selected_columns))
+
+# Display the first few rows of the limited dataframe
+head(limited_stormdata)
+
+```
+# Arrange the dataframe by the state name
+
+``` {r arrange-data_by_state, echo=FALSE}
+
+# Arrange the dataframe by the state name
+arranged_stormdata <- limited_stormdata %>% arrange(STATE)
+
+# Display the first few rows of the arranged dataframe
+head(arranged_stormdata)
+```
+
+## Arrange the stormdata by converting state and county name to Titlecase
+``` {r Changestate/countyname-titlecase, echo=FALSE}
+arranged_stormdata <- arranged_stormdata %>%
+  mutate(
+    STATE = str_to_title(STATE),
+    CZ_NAME = str_to_title(CZ_NAME)
+  )
+
+# Display the first few rows of the modified data
+head(arranged_stormdata)
+rows_arranged = nrow(arranged_stormdata)
+```
+
+``` {r filter, echo=FALSE}
+# Filter the events to include only those with CZ_TYPE of 'C'
+filtered_storm_events <- arranged_stormdata %>%
+  filter(CZ_TYPE == "C") %>%
+  select(-CZ_TYPE)
+
+rows_filtered = nrow(filtered_storm_events)
+```
+## Filter the storm events data to include only events listed by county FIPS.
+The filtered data frame has `r rows_filtered` rows.
+
+``` {r filter-display, echo=FALSE}
+# Display the first few rows of the filtered dataframe
+head(filtered_storm_events)
+```
+
+##  Unite the state and county FIPS into one FIPS column
+``` {r padding, echo=FALSE}
+
+# Pad the state and county FIPS with a "0" at the beginning
+filtered_storm_events <- filtered_storm_events %>%
+  mutate(
+    STATE_FIPS = str_pad(STATE_FIPS, width = 3, side = "left", pad = "0"),
+    CZ_FIPS = str_pad(CZ_FIPS, width = 3, side = "left", pad = "0")
+  )
+
+# Unite the state and county FIPS into one FIPS column
+filtered_storm_events <- filtered_storm_events %>%
+  unite("FIPS", STATE_FIPS, CZ_FIPS, sep = "")
+
+# Display the first few rows
+head(filtered_storm_events)
+```
+
+## Display the first few rows of the dataframe with lower case column names
+```{r change_column_names_lowercase, echo=FALSE}
+# Change all column names to lower case
+filtered_storm_events <- filtered_storm_events %>%
+  rename_all(tolower)
+
+# Display the first few rows of the dataframe with lower case column names
+head(filtered_storm_events)
+```
+## US State name, Area and Region
+```{r US-states, echo=FALSE}
+# Load the data on U.S. states
+data("state")
+
+# Create a dataframe with state name, area, and region
+US_states <- data.frame(
+  US_State = state.name,
+  Area = state.area,
+  Region = state.region
+)
+
+# Display the first few rows of the states dataframe
+head(US_states)
+
+```
+## The number of storm events per state
+```{r number-of-events-per-state, echo=FALSE}
+# Create a dataframe with the number of events per state
+events_per_state <- filtered_storm_events %>%
+  group_by(state) %>%
+  summarise(number_of_events = n())
+
+# Display the first few rows of the events per state dataframe
+head(events_per_state)
+```
+## Integrate state-level information, including area and region, from built-in R datasets.
+
+```{r merge-data,echo = FALSE}
+
+# Merge the events_per_state dataframe with the states_data dataframe
+merged_data <- merge(events_per_state, US_states, by.x = "state", by.y = "US_State")
+
+# Display the first few rows of the merged dataframe
+kable(merged_data)
+```
+
+### Visualization
+
+This Scatter plot is to visualize the relationship between land area and the number of storm events, with points color-coded by region.
+
+```{r plotting, echo=FALSE}
+# Create the scatter plot
+ggplot(merged_data, aes(x = Area, y = number_of_events, color = Region)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c(
+    "Northeast" = "red",
+    "South" = "green",
+    "North Central" = "blue",
+    "West" = "purple"
+  )) +
+  labs(
+    title = "Number of Storm Events in 1986 vs Land Area",
+    x = "Land Area (square miles)",
+    y = "Number of Storm Events"
+  ) +
+  theme_minimal()
+```
+
